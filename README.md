@@ -46,7 +46,7 @@ The **Forwarded Message Bot** connects directly to Discord’s WebSocket gateway
 
 1. Start the bot:
    ```bash
-   python forward_message_bot.py
+   python main.py
    ```
 2. The bot will connect to the WebSocket, monitor for message delete events, log snapshots, and send the data to your designated channel.
 
@@ -73,4 +73,3 @@ When a deleted message event is captured, an entry like the following will appea
 ---
 
 This bot provides a streamlined way to capture and forward message snapshots, useful for server moderation and data logging.
-```
