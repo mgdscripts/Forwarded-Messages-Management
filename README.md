@@ -1,4 +1,4 @@
-```markdown
+
 # Forwarded Message Bot for Discord
 
 The **Forwarded Message Bot** connects directly to Discord’s WebSocket gateway to capture specific events, such as messages being deleted. This bot listens for any message delete events, takes a snapshot of those messages, logs the snapshots into a JSON file, and forwards that file to a specified channel.
