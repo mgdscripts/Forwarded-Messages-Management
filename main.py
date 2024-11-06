@@ -1,81 +1,61 @@
 import discord
 import json
-import websockets
-import asyncio
+import aiohttp
 import os
 
-class MessageSnapshot:
-    """Represents a message snapshot for forwarded messages."""
+intents = discord.Intents.all()
+client = discord.Client(intents=intents)
 
-    def __init__(self, data):
-        self.type = data.get('type')
-        self.content = data.get('content')
-        self.embeds = data.get('embeds', [])
-        self.attachments = data.get('attachments', [])
-        self.created_at = data.get('timestamp')
-        self.flags = data.get('flags')
-        self.stickers = data.get('stickers', [])
-        self.components = data.get('components', [])
+TOKEN =
+GUILD_ID_1 = 
+GUILD_ID_2 = 
+CHANNEL_ID_GUILD_2 = 
+CHANNEL_ID_TO_SEND = 
 
-    def __repr__(self):
-        return f"<MessageSnapshot type={self.type!r} created_at={self.created_at!r} content={self.content!r}>"
+@client.event
+async def on_ready():
+    print("Bot is ready and logged in as Forwards admin")
 
-class ForwardedMessageBot(discord.Client):
-    async def on_ready(self):
-        print(f'Logged in as Forwards admin')
-        asyncio.create_task(self.connect_to_websocket())
+@client.event
+async def on_message(message):
+    # Ignore messages from the bot itself, other bots, and webhooks
+    if message.author.bot or message.webhook_id:
+        return
 
-    async def connect_to_websocket(self):
-        # Connect directly to the Discord WebSocket
-        async with websockets.connect('wss://gateway.discord.gg/?v=10&encoding=json') as ws:
-            # Identify with the WebSocket using your bot token
-            await ws.send(json.dumps({
-                "op": 2,
-                "d": {
-                    "token": "TOKEN",
-                    "intents": 32767,
-                    "properties": {
-                        "$os": "linux",
-                        "$browser": "disco",
-                        "$device": "disco"
-                    }
-                }
-            }))
+    # Check if message is from the specified servers and channel
+    if (message.guild.id == GUILD_ID_1) or (message.guild.id == GUILD_ID_2 and message.channel.id == CHANNEL_ID_GUILD_2):
+        # Define API endpoint to get the last 5 messages in the channel
+        url = f'https://discord.com/api/v9/channels/{message.channel.id}/messages?limit=5'
+        headers = {
+            'Authorization': f'Bot {TOKEN}',
+            'Content-Type': 'application/json'
+        }
 
-            while True:
-                message = await ws.recv()
-                data = json.loads(message)
-                
-                # Look for MESSAGE_CREATE event
-                if data['t'] == "MESSAGE_CREATE":
-                    message_data = data['d']
-                    
-                    # Ensure message is from a guild, not a DM
-                    if 'guild_id' in message_data and 'message_snapshots' in message_data:
-                        snapshots = message_data['message_snapshots']
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+
+                    # Find the specific message by ID and check for 'message_snapshots'
+                    target_message = next((msg for msg in data if msg['id'] == str(message.id)), None)
+                    if target_message and 'message_snapshots' in target_message:
+                        snapshots = target_message['message_snapshots']
                         file_content = json.dumps({"message_snapshots": snapshots}, indent=4)
-                        
-                        # Write JSON to file
+
+                        # Save the snapshot data to a file
                         with open("deleted.json", "w") as f:
                             f.write(file_content)
 
-                        # Send file to specified channel
-                        await self.send_deleted_file()
+                        # Send the file to the specified channel
+                        send_channel = client.get_channel(CHANNEL_ID_TO_SEND)
+                        if send_channel:
+                            await send_channel.send(file=discord.File("deleted.json"))
+                            os.remove("deleted.json")  # Clean up the file after sending
 
-                        # Delete the message
-                        await self.delete_message(message_data['channel_id'], message_data['id'])
+                        # Delete the original message
+                        message_to_delete = await message.channel.fetch_message(target_message['id'])
+                        await message_to_delete.delete()
+                else:
+                    print(f"Failed to fetch messages. Status: {response.status}")
 
-    async def send_deleted_file(self):
-        # Send `deleted.json` to the specific channel
-        channel = self.get_channel(<channel_id>)
-        if channel:
-            await channel.send(file=discord.File("deleted.json"))
-            os.remove("deleted.json")  # Clean up file after sending
-
-    async def delete_message(self, channel_id, message_id):
-        channel = await self.fetch_channel(channel_id)
-        message = await channel.fetch_message(message_id)
-        await message.delete()
-
-client = ForwardedMessageBot(intents=discord.Intents.all())
 client.run(TOKEN)
